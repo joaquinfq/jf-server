@@ -1,0 +1,23 @@
+{
+    "name": "jf-server",
+    "version": "0.1.0",
+    "description": "HTTP Server with dependency injection for building responses easily.",
+    "main": "server.js",
+    "license": "MIT",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "http://github.com/joaquinfq/jf-server.git"
+    },
+    "dependencies": {
+        "handlebars": "^4.0.11",
+        "helpers-hbs": "^0.3.4",
+        "jf-factory": "^1.0.0",
+        "jf-file-system": "^2.0.3",
+        "jf-http-headers": "^0.1.0",
+        "jf-server-base": "0.0.1",
+        "mime-db": "^1.34.0"
+    }
+}
