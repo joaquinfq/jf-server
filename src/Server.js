@@ -1,6 +1,5 @@
-const factory      = require('jf-factory').i();
 const jfServerBase = require('jf-server-base');
-const jfServerTpl  = require('./Tpl');
+const jfServerPage = require('./Page');
 const os           = require('os');
 const path         = require('path');
 const STATUS_CODES = require('http').STATUS_CODES;
@@ -19,6 +18,17 @@ module.exports = class jfServer
      */
     constructor(config = {})
     {
+        /**
+         * Manejadores de las peticiones.
+         *
+         * @type {object}
+         */
+        this.handlers = {};
+        /**
+         * Nombre del host.
+         *
+         * @type {string}
+         */
         this.host = config.host || os.hostname() || 'localhost';
         /**
          * Puerto donde escuchará el servidor web.
@@ -43,36 +53,52 @@ module.exports = class jfServer
     }
 
     /**
+     * Construiye el manejador de la petición.
+     *
+     * @param {string} method    Método de la petición.
+     * @param {string} extension Extensión del archivo solicitado.
+     * @param {object} config    Configuración a aplicar al manejador.
+     *
+     * @return {jf.server.method.Base|null} Manejador de la petición.
+     */
+    buildHandler(method, extension, config = {})
+    {
+        let _service    = null;
+        const _handlers = this.handlers[method.toUpperCase()];
+        if (_handlers)
+        {
+            const _Class = _handlers[extension] || _handlers['*'];
+            if (_Class)
+            {
+                _service = new _Class(config);
+            }
+        }
+        //
+        return _service;
+    }
+
+    /**
      * @override
      */
     checkError(method)
     {
+        if (!method.statusCode)
+        {
+            method.statusCode = 500;
+        }
         const _code = method.statusCode;
-        if (_code >= 400 && !method.body && STATUS_CODES[_code])
+        if (_code >= 400 && (!method.page || !method.page.content) && STATUS_CODES[_code])
         {
-            const _msg   = STATUS_CODES[_code];
-            method.title = `Error ${_code} - ${_msg}`;
-            method.tpl   = 'error';
-            method.body  = {
-                code    : _code,
-                message : _msg
-            };
+            const _page = new jfServerPage({ root : this.root });
+            Object.assign(
+                _page,
+                {
+                    title : `Error ${_code}: ${STATUS_CODES[_code]}`,
+                    tpl : 'error'
+                }
+            );
+            method.page = _page;
         }
-    }
-
-    /**
-     * Devuelve el manejador de la plantilla.
-     *
-     * @return {jf.templates.Tpl} Manejador de la plantilla.
-     */
-    getTpl()
-    {
-        let _tpl = this.tpl;
-        if (!_tpl)
-        {
-            _tpl = this.tpl = new jfServerTpl(this);
-        }
-        return _tpl;
     }
 
     /**
@@ -108,22 +134,23 @@ module.exports = class jfServer
      * @param {http.IncomingMessage} request  Objeto de la petición.
      * @param {http.ServerResponse}  response Objeto de la respuesta.
      */
-    process(request, response)
+    async process(request, response)
     {
-        const _time   = Date.now();
-        const _config = {
-            request,
-            root : this.root
-        };
-        const _method = request.method.toUpperCase() + '/';
         let _service;
+        const _time = Date.now();
         try
         {
-            _service = factory.create(_method + path.extname(request.url), _config) ||
-                       factory.create(_method + '*', _config);
+            _service = this.buildHandler(
+                request.method.toUpperCase(),
+                path.extname(request.url),
+                {
+                    request,
+                    root : this.root
+                }
+            );
             if (_service)
             {
-                _service.process();
+                await _service.process();
             }
             else
             {
@@ -151,6 +178,26 @@ module.exports = class jfServer
     }
 
     /**
+     * Registra una clase como manejadora de una petición.
+     *
+     * @param {string}                method Método que gestiona la clase.
+     * @param {jf.server.method.Base} Class  Clase a registrar.
+     * @param {boolean}               index  Indica si la clase también gestiona el índice de un directorio.
+     */
+    register(method, Class, index = false)
+    {
+        let _handlers = this.handlers;
+        _handlers     = method in _handlers
+            ? _handlers[method]
+            : _handlers[method] = {};
+        Class.extensions.forEach(ext => _handlers[ext] = Class);
+        if (index)
+        {
+            _handlers['*'] = Class;
+        }
+    }
+
+    /**
      * Envía la petición al cliente.
      *
      * @param {jf.server.method.Base} method  Método que atendió la petición.
@@ -170,13 +217,9 @@ module.exports = class jfServer
             }
         }
         response.writeHead(_code);
-        let _content = method.body;
+        let _content = method.page.render();
         if (_content)
         {
-            if (typeof _content === 'object' && !(_content instanceof Buffer))
-            {
-                _content = this.getTpl().render(method.tpl, _content);
-            }
             response.write(_content);
         }
         response.end();

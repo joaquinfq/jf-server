@@ -2,8 +2,20 @@
     <head>
         <meta charset="utf-8"/>
         <title>{{title}}</title>
+{{#if head}}
+{{head}}
+{{/if}}
+{{#if style}}
+        <style type="text/css">
+{{#indent size=12}}
+{{style}}
+{{/indent}}
+        </style>
+{{/if}}
     </head>
-    <body>
+    <body{{#if class}} class="{{class}}"{{/if}}>
+
 {{body}}
+
     </body>
 </html>

@@ -1,10 +1,7 @@
-const factory            = require('jf-factory').i();
 const fs                 = require('fs');
-const mimeTypes          = require('../mime-types').extensions;
 const jfServerMethodBase = require('./Base');
+const mimeTypes          = require('../mime-types').extensions;
 const path               = require('path');
-const qs                 = require('querystring');
-
 /**
  * Punto de entrada de las peticiones GET.
  *
@@ -12,23 +9,40 @@ const qs                 = require('querystring');
  * @class     jf.server.method.Get
  * @extends   jf.server.method.Base
  */
-class jfServerMethodGet extends jfServerMethodBase
+module.exports = class jfServerMethodGet extends jfServerMethodBase
 {
+    /**
+     * Extensiones que gestiona la clase.
+     *
+     * @return {string[]} Listado de extensiones.
+     */
+    static get extensions()
+    {
+        return ['*'];
+    }
+
     /**
      * Construye el listado del directorio navegable.
      *
      * @param {string} dir Ruta del directorio.
      */
-    buildDirectory(dir)
+    async buildDirectory(dir)
     {
         const _files    = fs.readdirSync(dir);
+        const _root     = this.root;
         this.statusCode = 200;
-        this.tpl        = 'directory';
-        this.body       = {
-            dir     : dir.replace(this.root, ''),
-            headers : ['Archivo', 'Tamaño', 'Fecha'],
-            entries : this._formatFiles(_files.map(file => path.join(dir, file)))
-        };
+        Object.assign(
+            this.page,
+            {
+                tpl     : 'directory',
+                options : {
+                    dir     : dir.replace(_root, '') || '/',
+                    entries : this._formatFiles(_files.map(file => path.join(dir, file))),
+                    headers : ['Archivo', 'Tamaño', 'Fecha'],
+                    root    : _root
+                }
+            }
+        );
     }
 
     /**
@@ -38,41 +52,52 @@ class jfServerMethodGet extends jfServerMethodBase
      *
      * @return {string} Contenido para la URL.
      */
-    buildFile(filename)
+    async buildFile(filename)
     {
-        const _body = this.load(null, filename);
-        if (_body === null)
+        const _content = this.load(null, filename);
+        if (_content === null)
         {
             this.statusCode = 404;
         }
         else
         {
-            this.body       = _body;
-            this.statusCode = 200;
-            this.title      = filename;
-            const _mime     = mimeTypes[path.extname(filename)];
-            if (_mime)
-            {
-                this.type = _mime.charset
-                    ? `${_mime.type}; charset="${_mime.charset}"`
-                    : _mime.type;
-            }
+            this.page.content = String(_content);
+            this.statusCode   = 200;
+            this._buildTypeFromFile(filename);
         }
     }
 
     /**
      * Construye el índice del directorio.
      */
-    buildIndex(dir)
+    async buildIndex(dir)
     {
         const _indexFile = this.getIndexFile(dir);
         if (_indexFile)
         {
-            this.buildFile(_indexFile);
+            await this.buildFile(_indexFile);
         }
         else
         {
-            this.buildDirectory(dir);
+            await this.buildDirectory(dir);
+        }
+    }
+
+    /**
+     * Asigna el tipo de contenido en función de la extensión del nombre de archivo especificado.
+     *
+     * @param {string} file Nombre del archivo.
+     *
+     * @protected
+     */
+    _buildTypeFromFile(file)
+    {
+        const _mime = mimeTypes[path.extname(file)];
+        if (_mime)
+        {
+            this.type = _mime.charset
+                ? `${_mime.type}; charset="${_mime.charset}"`
+                : _mime.type;
         }
     }
 
@@ -87,15 +112,15 @@ class jfServerMethodGet extends jfServerMethodBase
     {
         if (files.length)
         {
-            const _root = this.root;
-            const _dir  = path.dirname(files[0]);
+            const _root   = this.root;
+            const _dir    = path.dirname(files[0]);
             const _parent = _dir === _root
                 ? ''
                 : path.dirname(_dir);
             if (_parent)
             {
                 // Evitamos modificar el array original con unshift.
-                files = [ _parent, ...files ];
+                files = [_parent, ...files];
             }
             files = files.map(
                 file =>
@@ -113,7 +138,11 @@ class jfServerMethodGet extends jfServerMethodBase
                 )
                 .sort(
                     (c1, c2) => c1.dir === c2.dir
-                        ? c1.name.toLowerCase().localeCompare(c2.name.toLowerCase())
+                        ? c1.name === '..'
+                            ? -1
+                            : c2.name === '..'
+                                ? 1
+                                : c1.name.toLowerCase().localeCompare(c2.name.toLowerCase())
                         : c1.dir
                             ? -1
                             : 1
@@ -125,38 +154,48 @@ class jfServerMethodGet extends jfServerMethodBase
     /**
      * Devuelve el archivo a usar como índice del directorio.
      *
-     * @return {string|undefined} Ruta del archivo índice o `undefined` si no existe.
+     * @param {string}        dir   Directorio donde se buscará el archivo índice.
+     * @param {string[]|null} files Listado de nombres posibles del árchivo índice.
+     *                              Si no se especifica se usa el predefinido por la clase.
+     *
+     * @return {string|null} Ruta del archivo índice o `undefined` si no existe.
      */
-    getIndexFile(dir, files = ['index.html', 'index.htm'])
+    getIndexFile(dir, files = null)
     {
-        return files
-            .map(file => this.resolve(path.join(dir, file)))
-            .filter(Boolean)[0];
+        let _exts = this.constructor.extensions;
+        let _file = null;
+
+        ['index', 'default', 'readme'].some(
+            file => _exts.some(
+                ext => _file = this.resolve(path.join(dir, file) + ext) ||
+                               this.resolve(path.join(dir, file.toUpperCase()) + ext)
+            )
+        );
+        //
+        return _file;
     }
 
     /**
      * @override
      */
-    process()
+    async process()
     {
         const _path = path.join(this.root, ...this.request.url.split('/').filter(s => s && s[0] !== '.'));
         if (this.exists(_path))
         {
             if (this.isDirectory(_path))
             {
-                this.buildIndex(_path)
+                await this.buildIndex(_path)
             }
             else
             {
-                this.buildFile(_path);
+                await this.buildFile(_path);
             }
         }
         else
         {
             this.statusCode = 404;
         }
+        await super.process();
     }
-}
-
-factory.register('GET/*', jfServerMethodGet);
-module.exports = jfServerMethodGet;
+};

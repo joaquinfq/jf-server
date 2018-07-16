@@ -16,15 +16,16 @@ module.exports = class jfServerTpl extends jfServerBase
     /**
      * @override
      */
-    constructor(server)
+    constructor(options = {})
     {
         super();
         /**
-         * Instancia del servidor web.
+         * Opciones a usar para renderizar la plantilla.
          *
-         * @type {jf.server.Server}
+         * @property options
+         * @type     {object}
          */
-        this.server = server;
+        this.options = options;
         //------------------------------------------------------------------------------
         helpersHbs.registerAll(hbs);
     }
@@ -49,6 +50,7 @@ module.exports = class jfServerTpl extends jfServerBase
     compile(filename)
     {
         const _content = this.load(filename);
+        //
         return _content
             ? hbs.compile(_content, { noEscape : true })
             : () => filename;
@@ -75,13 +77,14 @@ module.exports = class jfServerTpl extends jfServerBase
         }
         else if (!path.isAbsolute(filename))
         {
-            _content = this.load(path.resolve(this.server.root, filename)) ||
-                       this.load(path.resolve(ROOT, filename));
+            _content = this.load(path.resolve(this.options.root, filename)) ||
+                       this.load(path.join(ROOT, filename));
         }
         else
         {
             _content = '';
         }
+        //
         return _content;
     }
 
@@ -97,11 +100,9 @@ module.exports = class jfServerTpl extends jfServerBase
     {
         return this.compile(filename)(
             {
+                pkg     : PKG,
+                options : this.options,
                 ...context,
-                server : {
-                    ...PKG,
-                    ...this.server
-                }
             }
         );
     }
