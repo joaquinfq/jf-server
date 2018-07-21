@@ -34,9 +34,10 @@ module.exports = class jfServerBase extends jfFileSystem
     {
         const _length = 12;
         console[level || 'log'](
-            '[%s][%s] %s',
-            new Date().toISOString().substr(0, 19),
-            `${name || this.constructor.name.substr(8)}${' '.repeat(_length)}`.substr(0, _length),
+            '[%s][%s]%s%s',
+            new Date().toISOString().substr(0, 19).replace('T', ' '),
+            `${(name || this.constructor.name).replace('jfServer', '')}${' '.repeat(_length)}`.substr(0, _length),
+            label[0] === '[' ? '' : ' ',
             format(label, ...args)
         );
     }

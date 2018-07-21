@@ -1,15 +1,15 @@
-const fs                 = require('fs');
-const jfServerMethodBase = require('./Base');
-const mimeTypes          = require('../mime-types').extensions;
-const path               = require('path');
+const fs                  = require('fs');
+const jfServerHandlerBase = require('./Base');
+const mimeTypes           = require('../mime-types').extensions;
+const path                = require('path');
 /**
  * Punto de entrada de las peticiones GET.
  *
- * @namespace jf.server.method
- * @class     jf.server.method.Get
- * @extends   jf.server.method.Base
+ * @namespace jf.server.handler
+ * @class     jf.server.handler.Get
+ * @extends   jf.server.handler.Base
  */
-module.exports = class jfServerMethodGet extends jfServerMethodBase
+module.exports = class jfServerHandlerGet extends jfServerHandlerBase
 {
     /**
      * Extensiones que gestiona la clase.

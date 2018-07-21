@@ -1,3 +1,5 @@
+const Base         = require('./Base').i();
+const Events       = require('events');
 const jfServerBase = require('jf-server-base');
 const jfServerPage = require('./Page');
 const os           = require('os');
@@ -9,7 +11,7 @@ const STATUS_CODES = require('http').STATUS_CODES;
  * @namespace jf.server
  * @class     jf.server.Server
  */
-module.exports = class jfServer
+module.exports = class jfServerServer extends Events
 {
     /**
      * Constructor de la clase jfServer.
@@ -18,6 +20,7 @@ module.exports = class jfServer
      */
     constructor(config = {})
     {
+        super();
         /**
          * Manejadores de las peticiones.
          *
@@ -55,73 +58,86 @@ module.exports = class jfServer
     /**
      * Construiye el manejador de la petición.
      *
-     * @param {string} method    Método de la petición.
-     * @param {string} extension Extensión del archivo solicitado.
-     * @param {object} config    Configuración a aplicar al manejador.
+     * @param {string} method Método de la petición.
+     * @param {string} url    URL de la petición.
+     * @param {object} config Configuración a aplicar al manejador.
      *
-     * @return {jf.server.method.Base|null} Manejador de la petición.
+     * @return {jf.server.handler.Base|null} Manejador de la petición.
      */
-    buildHandler(method, extension, config = {})
+    buildHandler(method, url, config = {})
     {
-        let _service    = null;
+        let _handler = null;
+        this.emit('before-build-handler', { method, url, config });
         const _handlers = this.handlers[method.toUpperCase()];
         if (_handlers)
         {
-            const _Class = _handlers[extension] || _handlers['*'];
+            // Si no hay una extensión usamos el nombre por si hay un
+            // manejador para esa ruta.
+            const _extension = path.extname(url) || path.basename(url);
+            const _Class     = _handlers[_extension] || _handlers['*'];
             if (_Class)
             {
-                _service = new _Class(config);
+                _handler = new _Class(config);
             }
         }
+        this.emit('after-build-handler', { method, url, config, handler : _handler });
         //
-        return _service;
+        return _handler;
     }
 
     /**
      * @override
      */
-    checkError(method)
+    checkError(handler)
     {
-        if (!method.statusCode)
+        this.emit('before-check-error', { handler });
+        if (!handler.statusCode)
         {
-            method.statusCode = 500;
+            handler.statusCode = 500;
         }
-        const _code = method.statusCode;
-        if (_code >= 400 && (!method.page || !method.page.content) && STATUS_CODES[_code])
+        const _code = handler.statusCode;
+        if (_code >= 400 && (!handler.page || !handler.page.content) && STATUS_CODES[_code])
         {
             const _page = new jfServerPage({ root : this.root });
             Object.assign(
                 _page,
                 {
                     title : `Error ${_code}: ${STATUS_CODES[_code]}`,
-                    tpl : 'error'
+                    tpl   : 'error'
                 }
             );
-            method.page = _page;
+            handler.page = _page;
         }
+        this.emit('after-check-error', { handler });
+    }
+
+    /**
+     * @override
+     */
+    emit(eventName, payload)
+    {
+        payload.event  = eventName;
+        payload.server = this;
+        //
+        return super.emit(eventName, payload);
     }
 
     /**
      * Muestra por pantalla información de la petición.
      *
-     * @param {jf.server.method.Base} method  Método que atendió la petición.
-     * @param {http.IncomingMessage}  request Configuración de la petición.
-     * @param {Number}                time    Marca de tiempo del inicio de la petición.
+     * @param {jf.server.handler.Base} handler  Manejador de la petición.
+     * @param {http.IncomingMessage}   request  Configuración de la petición.
+     * @param {Number}                 time     Marca de tiempo del inicio de la petición.
      */
-    log(method, request, time)
+    log(handler, request, time)
     {
-        const _code   = method
-            ? method.statusCode
-            : 405;
-        const _length = 10;
-        const _name   = method && method.constructor && method.constructor.name
-            ? `${method.constructor.name.replace('jfServer', '')}${' '.repeat(_length)}`.substr(0, _length)
-            : '';
-        console.log(
-            '[%s][%s][%s][%sms] %s %s',
-            new Date().toISOString().substr(0, 19).replace('T', ' '),
-            _name,
-            _code,
+        Base.log(
+            'log',
+            this.constructor.name,
+            '[%s][%sms] %s %s',
+            handler
+                ? handler.statusCode
+                : 405,
             ('   ' + (Date.now() - time).toFixed(0)).substr(-3),
             request.method,
             request.url
@@ -142,15 +158,23 @@ module.exports = class jfServer
         {
             _service = this.buildHandler(
                 request.method.toUpperCase(),
-                path.extname(request.url),
+                request.url,
                 {
                     request,
+                    response,
                     root : this.root
                 }
             );
             if (_service)
             {
+                const _payload = {
+                    request,
+                    response,
+                    handler : _service
+                };
+                this.emit('before-process', _payload);
                 await _service.process();
+                this.emit('after-process', _payload);
             }
             else
             {
@@ -180,9 +204,9 @@ module.exports = class jfServer
     /**
      * Registra una clase como manejadora de una petición.
      *
-     * @param {string}                method Método que gestiona la clase.
-     * @param {jf.server.method.Base} Class  Clase a registrar.
-     * @param {boolean}               index  Indica si la clase también gestiona el índice de un directorio.
+     * @param {string}                 method Método de la petición.
+     * @param {jf.server.handler.Base} Class  Clase a registrar.
+     * @param {boolean}                index  Indica si la clase también gestiona el índice de un directorio.
      */
     register(method, Class, index = false)
     {
@@ -200,29 +224,40 @@ module.exports = class jfServer
     /**
      * Envía la petición al cliente.
      *
-     * @param {jf.server.method.Base} method  Método que atendió la petición.
-     * @param {http.ServerResponse}  response Objeto de la respuesta.
+     * @param {jf.server.handler.Base} handler  Manejador de la petición.
+     * @param {http.ServerResponse}    response Objeto de la respuesta.
      */
-    send(method, response)
+    send(handler, response)
     {
-        this.checkError(method);
-        const _code    = method.statusCode;
-        const _headers = method.headers;
+        this.emit('before-send', { handler, response });
+        this.checkError(handler);
+        const _code      = handler.statusCode;
+        const _headers   = handler.headers;
+        const _keepAlive = handler.keepAlive;
         if (_headers)
         {
-            _headers.set('Content-Type', method.type);
+            if (_keepAlive)
+            {
+                _headers.set('Connection', 'keep-alive');
+            }
+            _headers.set('Content-Type', handler.type);
             for (const _header of _headers)
             {
                 response.setHeader(_header, _headers.get(_header));
             }
         }
         response.writeHead(_code);
-        let _content = method.page.render();
+        let _content = handler.page.render();
         if (_content)
         {
             response.write(_content);
         }
-        response.end();
+        this.emit('after-send', { handler, response });
+        if (!_keepAlive)
+        {
+            response.end();
+        }
+        this.emit('end', { handler, response });
     }
 
     /**

@@ -5,6 +5,9 @@
     </head>
     <body>
         <h1>{{title}}</h1>
+{{#if message}}
+        <pre>{{message}}</pre>
+{{/if}}
         <hr />
         <h3>{{server.name}}/{{server.version}} @ {{server.host}} - Puerto {{server.port}}</h3>
     </body>

@@ -14,8 +14,13 @@
 {{/if}}
     </head>
     <body{{#if class}} class="{{class}}"{{/if}}>
-
 {{body}}
-
+{{#if script}}
+    <script>
+{{#indent size=8}}
+{{script}}
+{{/indent}}
+    </script>
+{{/if}}
     </body>
 </html>
