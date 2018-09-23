@@ -1,6 +1,9 @@
-const jfHttpHeaders = require('jf-http-headers');
-const jfServerBase  = require('../Base');
-const jfServerPage  = require('../Page');
+const jfServerBase              = require('../Base');
+const jfServerAdapterJsonApi    = require('../adapter/JsonApi');
+const jfServerResponseHtml      = require('../response/Html');
+const jfServerStorageFileSystem = require('../storage/FileSystem');
+const path                      = require('path');
+const urlParse                  = require('url').parse;
 /**
  * Clase base para los punto de entrada de las peticiones.
  *
@@ -27,31 +30,24 @@ module.exports = class jfServerHandlerBase extends jfServerBase
     {
         super();
         /**
-         * Encabezados de la respuesta.
+         * Adaptador de la especificación de la API.
          *
-         * @property headers
-         * @type     {jf.HttpHeaders}
+         * @property adapter
+         * @type     {jf.server.adapter.Base|null}
          */
-        this.headers = new jfHttpHeaders();
+        this.adapter = null;
         /**
-         * Indica si el manejador mantendrá la conexión abierta.
+         * Cuerpo de la petición.
          *
-         * @property keepAlive
-         * @type     {boolean}
+         * @property body
+         * @type     {object|string|null}
          */
-        this.keepAlive = false;
+        this.body = null;
         /**
          * Generador de la página.
          *
          * @property page
-         * @type     {jf.request.Page}
-         */
-        this.page = new jfServerPage(config);
-        /**
-         * Respuesta de la petición.
-         *
-         * @property response
-         * @type     {http.ServerResponse|null}
+         * @type     {jf.server.response.Base|null}
          */
         this.response = null;
         /**
@@ -62,30 +58,93 @@ module.exports = class jfServerHandlerBase extends jfServerBase
          */
         this.request = null;
         /**
-         * Ruta raíz del servidor.
+         * Manejador del almacenamiento a usar para escribir/leer los recursos.
          *
-         * @property root
-         * @type     {string}
+         * @property storage
+         * @type     {jf.server.storage.Base|null}
          */
-        this.root = '';
+        this.storage = null;
         /**
-         * Código HTTP de respuesta.
+         * Información de la URL de la petición.
          *
-         * @property statusCode
-         * @type     {number|null}
+         * @type {Url|null}
          */
-        this.statusCode = null;
-        /**
-         * TIpo de contenido de la respuesta.
-         *
-         * @property type
-         * @type     {string}
-         */
-        this.type = 'text/html; charset=utf-8';
+        this.url = null;
         //------------------------------------------------------------------------------
-        if (config)
+        this.setProperties(config);
+        this._init(config);
+        if (this.request)
         {
-            Object.assign(this, config);
+            this._parseUrl(this.request.url);
+        }
+        // Convertimos a objeto el cuerpo de la petición.
+        const _body = this.body;
+        if (typeof _body === 'string' && (_body[0] === '{' || _body[0] === '['))
+        {
+            try
+            {
+                this.body = JSON.parse(_body);
+            }
+            catch (e)
+            {
+
+            }
+        }
+    }
+
+    /**
+     * Devuelve el nombre del archivo al que corresponde la ruta de la petición.
+     */
+    getFilename()
+    {
+        return path.join(this.constructor.ROOT, ...this.url.pathname.split('/'));
+    }
+
+    /**
+     * Método usado para inicializar las instancias de clases requeridas por el manejador.
+     * Sobrescribiendo este método cada clase hija colocará los valores apropiados.
+     *
+     * @protected
+     */
+    _init(config)
+    {
+        this.adapter  = new jfServerAdapterJsonApi(config);
+        this.response = new jfServerResponseHtml(config);
+        this.storage  = new jfServerStorageFileSystem(config);
+    }
+
+    /**
+     * Analiza la URL y asigna las propiedades de la clase que correspondan.
+     * Si la URL es inválida, asigna un error.
+     *
+     * @param {string} url URL a analizar.
+     *
+     * @protected
+     */
+    _parseUrl(url)
+    {
+        if (url)
+        {
+            const _url      = urlParse(url);
+            const _pathname = _url.pathname;
+            if (this._validatePathname(_pathname))
+            {
+                this.url     = _url;
+                const _query = _url.query;
+                if (_query)
+                {
+                    this.adapter.parse(_query);
+                }
+            }
+            else
+            {
+                this.response.setError(
+                    {
+                        message    : 'Ruta inválida: ' + _pathname,
+                        statusCode : 400
+                    }
+                );
+            }
         }
     }
 
@@ -95,5 +154,23 @@ module.exports = class jfServerHandlerBase extends jfServerBase
      */
     async process()
     {
+    }
+
+    /**
+     * Verifica que la ruta especificada sea válida.
+     *
+     * @param {string} pathname Ruta a validar.
+     *
+     * @return {boolean} `true` si la ruta es válida.
+     *
+     * @protected
+     */
+    _validatePathname(pathname)
+    {
+        //------------------------------------------------------------------------------
+        // Evitamos que cualquier parte empiece por un punto para evitar ataques del
+        // tipo `/api/../../../` o acceder a archivos ocultos como `.htaccess`.
+        //------------------------------------------------------------------------------
+        return pathname.length > 0 && (pathname === '/' || pathname.split('/').slice(1).every(s => s && s[0] !== '.'));
     }
 };

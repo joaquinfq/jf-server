@@ -1,14 +1,11 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>{{title}}</title>
+        <title>Error {{error.statusCode}}: {{error.message}}</title>
     </head>
     <body>
-        <h1>{{title}}</h1>
-{{#if message}}
-        <pre>{{message}}</pre>
-{{/if}}
+        <h1>Error {{error.statusCode}}: {{error.message}}</h1>
         <hr />
-        <h3>{{server.name}}/{{server.version}} @ {{server.host}} - Puerto {{server.port}}</h3>
+        <h3>{{pkg.name}}/{{pkg.version}} @ {{server.host}} - Puerto {{server.port}}</h3>
     </body>
 </html>

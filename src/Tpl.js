@@ -2,8 +2,7 @@ const hbs          = require('handlebars');
 const helpersHbs   = require('helpers-hbs');
 const jfServerBase = require('./Base');
 const path         = require('path');
-const ROOT         = path.join(__dirname, '..', 'tpl');
-const PKG          = require(path.join(__dirname, '..', 'package.json'));
+const TPLDIR       = path.join(__dirname, '..', 'tpl');
 /**
  * Maneja lo relacionado con la plantilla y la presentación del resultado.
  *
@@ -49,6 +48,7 @@ module.exports = class jfServerTpl extends jfServerBase
      */
     compile(filename)
     {
+        this.log('log', '', 'Plantilla: %s', filename);
         const _content = this.load(filename);
         //
         return _content
@@ -77,8 +77,8 @@ module.exports = class jfServerTpl extends jfServerBase
         }
         else if (!path.isAbsolute(filename))
         {
-            _content = this.load(path.resolve(this.options.root, filename)) ||
-                       this.load(path.join(ROOT, filename));
+            _content = this.load(path.resolve(this.constructor.ROOT, filename)) ||
+                       this.load(path.join(TPLDIR, filename));
         }
         else
         {
@@ -100,9 +100,9 @@ module.exports = class jfServerTpl extends jfServerBase
     {
         return this.compile(filename)(
             {
-                pkg     : PKG,
+                pkg     : this.constructor.PKG,
                 options : this.options,
-                ...context,
+                ...context
             }
         );
     }

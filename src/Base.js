@@ -1,7 +1,13 @@
-const format        = require('util').format;
-const jfFileSystem  = require('jf-file-system');
-const path          = require('path');
-
+const format       = require('util').format;
+const jfFileSystem = require('jf-file-system');
+const path         = require('path');
+const PKG          = require(path.join(__dirname, '..', 'package.json'));
+/**
+ * Ruta raíz del servidor.
+ *
+ * @type     {string}
+ */
+let root           = path.join(__dirname, '..');
 /**
  * Clase base para el resto de clases del repo.
  *
@@ -11,6 +17,38 @@ const path          = require('path');
  */
 module.exports = class jfServerBase extends jfFileSystem
 {
+    /**
+     * Devuelve la configuración del servidor.
+     *
+     * @return {object} Contenido del `package.json` del servidor.
+     */
+    static get PKG()
+    {
+        return PKG;
+    }
+
+    /**
+     * Devuelve la ruta raíz del servidor.
+     *
+     * @property ROOT
+     * @type     {string}
+     */
+    static get ROOT()
+    {
+        return root;
+    }
+
+    /**
+     * Asigna la ruta raíz del servidor.
+     *
+     * @property ROOT
+     * @type     {string}
+     */
+    static set ROOT(value)
+    {
+        root = path.resolve(value);
+    }
+
     /**
      * Devuelve el contenido del archivo.
      *
@@ -22,6 +60,7 @@ module.exports = class jfServerBase extends jfFileSystem
     load(encoding, ...segments)
     {
         const _filename = this.resolve(...segments);
+
         return _filename && this.isFile(_filename)
             ? this.read(_filename, encoding)
             : null;
@@ -63,5 +102,49 @@ module.exports = class jfServerBase extends jfFileSystem
         return this.exists(_filename)
             ? _filename
             : null;
+    }
+
+    /**
+     * Asigna los valores de las propiedades de la instancia.
+     *
+     * @param {object} values Valores a asignar.
+     */
+    setProperties(values)
+    {
+        if (values && typeof values === 'object')
+        {
+            for (const _property of Object.keys(values))
+            {
+                if (typeof this[_property] !== undefined)
+                {
+                    const _value = values[_property];
+                    if (_value !== undefined)
+                    {
+                        this[_property] = _value;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @override
+     */
+    toJSON()
+    {
+        const _data = {};
+        for (const _property of Object.keys(this))
+        {
+            if (_property[0] !== '_')
+            {
+                const _value = this[_property];
+                if (_value !== undefined && typeof _value !== 'function')
+                {
+                    _data[_property] = _value;
+                }
+            }
+        }
+
+        return _data;
     }
 };

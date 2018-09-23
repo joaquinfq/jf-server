@@ -1,10 +1,9 @@
-const Base         = require('./Base').i();
-const Events       = require('events');
-const jfServerBase = require('jf-server-base');
-const jfServerPage = require('./Page');
-const os           = require('os');
-const path         = require('path');
-const STATUS_CODES = require('http').STATUS_CODES;
+const Base                = require('./Base').i();
+const Events              = require('events');
+const jfServerBase        = require('jf-server-base');
+const jfServerHandlerBase = require('./handler/Base');
+const os                  = require('os');
+const path                = require('path');
 /**
  * Clase que gestiona el servidor web.
  *
@@ -26,7 +25,9 @@ module.exports = class jfServerServer extends Events
          *
          * @type {object}
          */
-        this.handlers = {};
+        this.handlers = {
+            jfServerError : jfServerHandlerBase
+        };
         /**
          * Nombre del host.
          *
@@ -40,13 +41,6 @@ module.exports = class jfServerServer extends Events
          * @type     {number}
          */
         this.port = config.port || 8888;
-        /**
-         * Ruta de la raíz del servidor web.
-         *
-         * @property root
-         * @type     {string}
-         */
-        this.root = config.root || path.join(__dirname, '..', 'www');
         /**
          * Manejador de la plantilla.
          *
@@ -88,32 +82,6 @@ module.exports = class jfServerServer extends Events
     /**
      * @override
      */
-    checkError(handler)
-    {
-        this.emit('before-check-error', { handler });
-        if (!handler.statusCode)
-        {
-            handler.statusCode = 500;
-        }
-        const _code = handler.statusCode;
-        if (_code >= 400 && (!handler.page || !handler.page.content) && STATUS_CODES[_code])
-        {
-            const _page = new jfServerPage({ root : this.root });
-            Object.assign(
-                _page,
-                {
-                    title : `Error ${_code}: ${STATUS_CODES[_code]}`,
-                    tpl   : 'error'
-                }
-            );
-            handler.page = _page;
-        }
-        this.emit('after-check-error', { handler });
-    }
-
-    /**
-     * @override
-     */
     emit(eventName, payload)
     {
         payload.event  = eventName;
@@ -135,9 +103,7 @@ module.exports = class jfServerServer extends Events
             'log',
             this.constructor.name,
             '[%s][%sms] %s %s',
-            handler
-                ? handler.statusCode
-                : 405,
+            handler.response.statusCode,
             ('   ' + (Date.now() - time).toFixed(0)).substr(-3),
             request.method,
             request.url
@@ -149,56 +115,64 @@ module.exports = class jfServerServer extends Events
      *
      * @param {http.IncomingMessage} request  Objeto de la petición.
      * @param {http.ServerResponse}  response Objeto de la respuesta.
+     * @param {string}               body     Cuerpo de la petición.
      */
-    async process(request, response)
+    async process(request, response, body)
     {
-        let _service;
+        let _error;
+        let _handler;
         const _time = Date.now();
         try
         {
-            _service = this.buildHandler(
-                request.method.toUpperCase(),
-                request.url,
-                {
-                    request,
-                    response,
-                    root : this.root
-                }
-            );
-            if (_service)
+            _handler = this.buildHandler(request.method.toUpperCase(), request.url, { body, request });
+            if (_handler)
             {
-                const _payload = {
-                    request,
-                    response,
-                    handler : _service
-                };
-                this.emit('before-process', _payload);
-                await _service.process();
-                this.emit('after-process', _payload);
+                // Si no es null, ocurrió un error al validar la petición.
+                if (_handler.response.statusCode === null)
+                {
+                    const _payload = {
+                        request,
+                        response,
+                        handler : _handler
+                    };
+                    this.emit('before-process', _payload);
+                    await _handler.process();
+                    this.emit('after-process', _payload);
+                }
             }
             else
             {
-                _service = {
-                    statusCode : 405
-                };
+                _error = 405;
             }
         }
         catch (e)
         {
-            if (_service)
-            {
-                _service.statusCode = 500;
-            }
-            else
-            {
-                _service = {
-                    statusCode : 500
-                };
-            }
             console.error(e.stack);
+            _error = e.statusCode || 500;
         }
-        this.send(_service, response);
-        this.log(_service, request, _time);
+        try
+        {
+            if (_error)
+            {
+                if (!_handler)
+                {
+                    _handler = new this.handlers.jfServerError();
+                }
+                _handler.response.setError(
+                    {
+                        statusCode : _error
+                    }
+                );
+            }
+            this.send(_handler, response);
+            this.log(_handler, request, _time);
+        }
+        catch (e)
+        {
+            console.error(e.stack);
+            response.writeHead(_error || 500);
+            response.end();
+        }
     }
 
     /**
@@ -206,19 +180,14 @@ module.exports = class jfServerServer extends Events
      *
      * @param {string}                 method Método de la petición.
      * @param {jf.server.handler.Base} Class  Clase a registrar.
-     * @param {boolean}                index  Indica si la clase también gestiona el índice de un directorio.
      */
-    register(method, Class, index = false)
+    register(method, Class)
     {
         let _handlers = this.handlers;
         _handlers     = method in _handlers
             ? _handlers[method]
             : _handlers[method] = {};
         Class.extensions.forEach(ext => _handlers[ext] = Class);
-        if (index)
-        {
-            _handlers['*'] = Class;
-        }
     }
 
     /**
@@ -230,28 +199,23 @@ module.exports = class jfServerServer extends Events
     send(handler, response)
     {
         this.emit('before-send', { handler, response });
-        this.checkError(handler);
-        const _code      = handler.statusCode;
-        const _headers   = handler.headers;
+        //------------------------------------------------------------------------------
+        // Envío de la respuesta.
+        //------------------------------------------------------------------------------
         const _keepAlive = handler.keepAlive;
-        if (_headers)
-        {
-            if (_keepAlive)
+        response.setHeader('Connection', handler.keepAlive ? 'keep-alive' : 'close');
+        handler.response.send(
+            response,
             {
-                _headers.set('Connection', 'keep-alive');
+                server : {
+                    host : this.host,
+                    port : this.port
+                }
             }
-            _headers.set('Content-Type', handler.type);
-            for (const _header of _headers)
-            {
-                response.setHeader(_header, _headers.get(_header));
-            }
-        }
-        response.writeHead(_code);
-        let _content = handler.page.render();
-        if (_content)
-        {
-            response.write(_content);
-        }
+        );
+        //------------------------------------------------------------------------------
+        // Finalización de la petición.
+        //------------------------------------------------------------------------------
         this.emit('after-send', { handler, response });
         if (!_keepAlive)
         {
@@ -265,16 +229,16 @@ module.exports = class jfServerServer extends Events
      */
     start()
     {
-        const _port = this.port;
-        const _sep  = '-'.repeat(80);
-        console.log(
-            '%s\nURL  del servidor : http://localhost:%d\nRaíz del servidor : %s\n%s',
-            _sep,
-            _port,
-            this.root,
-            _sep
-        );
-        jfServerBase.create(_port, (request, response) => this.process(request, response));
+        const _port  = this.port;
+        const _lines = [
+            `URL  del servidor : http://${this.host}:${_port}`,
+            `Raíz del servidor : ${Base.constructor.ROOT}`
+        ];
+        const _sep   = '-'.repeat(Math.max(..._lines.map(l => l.length)));
+        _lines.unshift(_sep);
+        _lines.push(_sep);
+        console.log(_lines.join('\n'));
+        jfServerBase.create(_port, (request, response, body) => this.process(request, response, body));
     }
 
     /**

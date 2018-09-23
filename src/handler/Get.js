@@ -1,6 +1,5 @@
 const fs                  = require('fs');
 const jfServerHandlerBase = require('./Base');
-const mimeTypes           = require('../mime-types').extensions;
 const path                = require('path');
 /**
  * Punto de entrada de las peticiones GET.
@@ -28,19 +27,16 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
      */
     async buildDirectory(dir)
     {
-        const _files    = fs.readdirSync(dir);
-        const _root     = this.root;
-        this.statusCode = 200;
-        Object.assign(
-            this.page,
+        const _files = fs.readdirSync(dir);
+        this.response.setProperties(
             {
-                tpl     : 'directory',
-                options : {
-                    dir     : dir.replace(_root, '') || '/',
+                context    : {
+                    dir     : dir.replace(this.constructor.ROOT, '') || '/',
                     entries : this._formatFiles(_files.map(file => path.join(dir, file))),
-                    headers : ['Archivo', 'Tamaño', 'Fecha'],
-                    root    : _root
-                }
+                    headers : ['Archivo', 'Tamaño', 'Fecha']
+                },
+                statusCode : 200,
+                tpl        : 'directory'
             }
         );
     }
@@ -57,13 +53,15 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
         const _content = this.load(null, filename);
         if (_content === null)
         {
-            this.statusCode = 404;
+            this.response.setError(
+                {
+                    statusCode : 404
+                }
+            );
         }
         else
         {
-            this.page.content = String(_content);
-            this.statusCode   = 200;
-            this._buildTypeFromFile(filename);
+            this.response.fromFile(filename);
         }
     }
 
@@ -84,24 +82,6 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
     }
 
     /**
-     * Asigna el tipo de contenido en función de la extensión del nombre de archivo especificado.
-     *
-     * @param {string} file Nombre del archivo.
-     *
-     * @protected
-     */
-    _buildTypeFromFile(file)
-    {
-        const _mime = mimeTypes[path.extname(file)];
-        if (_mime)
-        {
-            this.type = _mime.charset
-                ? `${_mime.type}; charset="${_mime.charset}"`
-                : _mime.type;
-        }
-    }
-
-    /**
      * Formatea un listado de archivos para que puedan ser renderizados en una plantilla.
      *
      * @param {string[]} files Rutas de los archivos.
@@ -112,7 +92,7 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
     {
         if (files.length)
         {
-            const _root   = this.root;
+            const _root   = this.constructor.ROOT;
             const _dir    = path.dirname(files[0]);
             const _parent = _dir === _root
                 ? ''
@@ -164,7 +144,6 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
     {
         let _exts = this.constructor.extensions;
         let _file = null;
-
         ['index', 'default', 'readme'].some(
             file => _exts.some(
                 ext => _file = this.resolve(path.join(dir, file) + ext) ||
@@ -180,21 +159,25 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
      */
     async process()
     {
-        const _path = path.join(this.root, ...this.request.url.split('/').filter(s => s && s[0] !== '.'));
-        if (this.exists(_path))
+        const _filename = this.getFilename();
+        if (this.exists(_filename))
         {
-            if (this.isDirectory(_path))
+            if (this.isDirectory(_filename))
             {
-                await this.buildIndex(_path)
+                await this.buildIndex(_filename);
             }
             else
             {
-                await this.buildFile(_path);
+                await this.buildFile(_filename);
             }
         }
         else
         {
-            this.statusCode = 404;
+            this.response.setError(
+                {
+                    statusCode : 404
+                }
+            );
         }
         await super.process();
     }
