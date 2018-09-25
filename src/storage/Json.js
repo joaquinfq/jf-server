@@ -60,6 +60,6 @@ module.exports = class jfServerStorageJson extends jfServerStorageFileSystem
             data = false;
         }
 
-        return this.create(pathname, data);
+        return this.create(pathname, data, true);
     }
 };

@@ -1,4 +1,5 @@
 const jfServerBase = require('../Base');
+const path         = require('path');
 /**
  * Clase base para los adaptadores.
  * Un adaptador permite realizar las operaciones CRUD sobre un soporte.
@@ -65,7 +66,7 @@ module.exports = class jfServerStorageBase extends jfServerBase
      *
      * @param {string} pathname Ruta del recurso.
      *
-     * @return {boolean} `true` si se pudo realizar la operación.
+     * @return {*} La información del recurso.
      */
     retrieve(pathname)
     {

@@ -1,5 +1,5 @@
 const jfServerBase              = require('../Base');
-const jfServerAdapterJsonApi    = require('../adapter/JsonApi');
+const jfServerAdapterBase       = require('../adapter/Base');
 const jfServerResponseHtml      = require('../response/Html');
 const jfServerStorageFileSystem = require('../storage/FileSystem');
 const path                      = require('path');
@@ -44,9 +44,9 @@ module.exports = class jfServerHandlerBase extends jfServerBase
          */
         this.body = null;
         /**
-         * Generador de la página.
+         * Manejador de la respuesta a enviar al cliente.
          *
-         * @property page
+         * @property response
          * @type     {jf.server.response.Base|null}
          */
         this.response = null;
@@ -67,16 +67,13 @@ module.exports = class jfServerHandlerBase extends jfServerBase
         /**
          * Información de la URL de la petición.
          *
-         * @type {Url|null}
+         * @property url
+         * @type     {Url|null}
          */
         this.url = null;
         //------------------------------------------------------------------------------
         this.setProperties(config);
         this._init(config);
-        if (this.request)
-        {
-            this._parseUrl(this.request.url);
-        }
         // Convertimos a objeto el cuerpo de la petición.
         const _body = this.body;
         if (typeof _body === 'string' && (_body[0] === '{' || _body[0] === '['))
@@ -87,9 +84,10 @@ module.exports = class jfServerHandlerBase extends jfServerBase
             }
             catch (e)
             {
-
             }
         }
+        this._parseUrl(this.request.url);
+        this.adapter.request(this.url, this.request, _body);
     }
 
     /**
@@ -108,7 +106,7 @@ module.exports = class jfServerHandlerBase extends jfServerBase
      */
     _init(config)
     {
-        this.adapter  = new jfServerAdapterJsonApi(config);
+        this.adapter  = new jfServerAdapterBase(config);
         this.response = new jfServerResponseHtml(config);
         this.storage  = new jfServerStorageFileSystem(config);
     }
@@ -117,24 +115,18 @@ module.exports = class jfServerHandlerBase extends jfServerBase
      * Analiza la URL y asigna las propiedades de la clase que correspondan.
      * Si la URL es inválida, asigna un error.
      *
-     * @param {string} url URL a analizar.
-     *
      * @protected
      */
-    _parseUrl(url)
+    _parseUrl()
     {
-        if (url)
+        const _url = this.request && this.request.url;
+        if (_url)
         {
-            const _url      = urlParse(url);
-            const _pathname = _url.pathname;
+            const _parsed   = urlParse(_url);
+            const _pathname = _parsed.pathname;
             if (this._validatePathname(_pathname))
             {
-                this.url     = _url;
-                const _query = _url.query;
-                if (_query)
-                {
-                    this.adapter.parse(_query);
-                }
+                this.url = _parsed;
             }
             else
             {
@@ -154,6 +146,7 @@ module.exports = class jfServerHandlerBase extends jfServerBase
      */
     async process()
     {
+        this.adapter.response(this.response);
     }
 
     /**

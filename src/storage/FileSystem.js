@@ -13,17 +13,23 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
     /**
      * Construye el nombre completo del archivo del recurso.
      *
-     * @param {string} pathname Ruta del recurso.
+     * @param {string}  pathname     Ruta del recurso.
+     * @param {boolean} addExtension Indica si se debe verificar la extensión y agregarla si no existe.
      *
      * @protected
      */
-    _buildFilename(pathname)
+    _buildFilename(pathname, addExtension = true)
     {
-        const _root = this.constructor.ROOT;
-        //
-        return pathname.includes(_root)
+        const Class      = this.constructor;
+        const _extension = Class.extension;
+        const _root      = Class.ROOT;
+        const _filename  = pathname.includes(_root)
             ? pathname
             : path.join(_root, ...pathname.split('/'));
+        //
+        return addExtension && _extension && !_filename.endsWith(_extension)
+            ? _filename + _extension
+            : _filename;
     }
 
     /**
@@ -87,7 +93,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
     {
         const _filename = this._buildFilename(pathname);
         //
-        let _id = 0;
+        let _id         = 0;
         if (this.isDirectory(_filename))
         {
             const _ids = fs.readdirSync(_filename)
@@ -99,7 +105,6 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
                 _id = Math.max(..._ids);
             }
         }
-
         return _id;
     }
 
@@ -120,7 +125,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     retrieveAll(pathname)
     {
-        const _filename = this._buildFilename(pathname);
+        const _filename = this._buildFilename(pathname, false);
         let _result     = this.exists(_filename) && this.isDirectory(_filename)
             ? fs.readdirSync(_filename)
                 .map(file => path.join(_filename, file))
@@ -146,6 +151,6 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     update(pathname, data)
     {
-        return this.create(pathname, data);
+        return this.create(pathname, data, true);
     }
 };
