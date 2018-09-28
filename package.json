@@ -1,6 +1,6 @@
 {
     "name": "jf-server",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "description": "HTTP Server oriented to file extensions instead routes.",
     "main": "src/Server.js",
     "license": "MIT",

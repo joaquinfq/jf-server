@@ -46,7 +46,7 @@ module.exports = class jfServerStorageJson extends jfServerStorageFileSystem
      */
     update(pathname, data)
     {
-        const _filename = this._buildFilename(pathname);
+        const _filename = this.buildFilename(pathname);
         if (this.exists(_filename))
         {
             const _old = this.retrieve(pathname);

@@ -15,10 +15,8 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      *
      * @param {string}  pathname     Ruta del recurso.
      * @param {boolean} addExtension Indica si se debe verificar la extensión y agregarla si no existe.
-     *
-     * @protected
      */
-    _buildFilename(pathname, addExtension = true)
+    buildFilename(pathname, addExtension = true)
     {
         const Class      = this.constructor;
         const _extension = Class.extension;
@@ -67,7 +65,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     create(pathname, data, overwrite = false)
     {
-        const _filename = this._buildFilename(pathname);
+        const _filename = this.buildFilename(pathname);
         //
         return overwrite || !this.exists(_filename)
             ? this._exec('write', _filename, data)
@@ -79,7 +77,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     delete(pathname)
     {
-        const _filename = this._buildFilename(pathname);
+        const _filename = this.buildFilename(pathname);
         //
         return this.exists(_filename)
             ? this._exec('rmdir', _filename)
@@ -91,7 +89,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     getLastId(pathname)
     {
-        const _filename = this._buildFilename(pathname);
+        const _filename = this.buildFilename(pathname);
         //
         let _id         = 0;
         if (this.isDirectory(_filename))
@@ -113,7 +111,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     retrieve(pathname)
     {
-        const _filename = this._buildFilename(pathname);
+        const _filename = this.buildFilename(pathname);
         //
         return this.exists(_filename)
             ? this._exec('read', _filename)
@@ -125,7 +123,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     retrieveAll(pathname)
     {
-        const _filename = this._buildFilename(pathname, false);
+        const _filename = this.buildFilename(pathname, false);
         let _result     = this.exists(_filename) && this.isDirectory(_filename)
             ? fs.readdirSync(_filename)
                 .map(file => path.join(_filename, file))
