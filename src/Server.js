@@ -1,5 +1,6 @@
 const Base                = require('./Base').i();
 const Events              = require('events');
+const fs                  = require('fs');
 const jfServerBase        = require('jf-server-base');
 const jfServerHandlerBase = require('./handler/Base');
 const os                  = require('os');
@@ -188,6 +189,29 @@ module.exports = class jfServerServer extends Events
             ? _handlers[method]
             : _handlers[method] = {};
         Class.extensions.forEach(ext => _handlers[ext] = Class);
+    }
+
+    /**
+     * Registra todas las clases de un directorio como manejaadores de peticiones.
+     * Los nombres de los archivos deben coincidir con los nombres de los métodos
+     * de la petición que manejan.
+     *
+     * @param {string} handlersDir Directorio con los manejadores.
+     */
+    registerFromDir(handlersDir)
+    {
+        fs.readdirSync(handlersDir).forEach(
+            handler =>
+            {
+                if (handler !== 'Base.js')
+                {
+                    start.register(
+                        path.basename(handler, '.js').toUpperCase(),
+                        require(path.join(handlersDir, handler))
+                    );
+                }
+            }
+        );
     }
 
     /**
