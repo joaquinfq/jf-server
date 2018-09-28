@@ -205,7 +205,7 @@ module.exports = class jfServerServer extends Events
             {
                 if (handler !== 'Base.js')
                 {
-                    start.register(
+                    this.register(
                         path.basename(handler, '.js').toUpperCase(),
                         require(path.join(handlersDir, handler))
                     );
