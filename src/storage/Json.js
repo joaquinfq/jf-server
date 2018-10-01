@@ -1,4 +1,5 @@
 const jfServerStorageFileSystem = require('./FileSystem');
+
 /**
  * Adaptador para usar archivos JSON almacenados en el sistema de archivos.
  *
@@ -6,7 +7,7 @@ const jfServerStorageFileSystem = require('./FileSystem');
  * @class     jf.server.storage.Json
  * @extends   jf.server.storage.FileSystem
  */
-module.exports = class jfServerStorageJson extends jfServerStorageFileSystem
+class jfServerStorageJson extends jfServerStorageFileSystem
 {
     /**
      * @override
@@ -62,4 +63,8 @@ module.exports = class jfServerStorageJson extends jfServerStorageFileSystem
 
         return this.create(pathname, data, true);
     }
-};
+}
+
+//------------------------------------------------------------------------------
+jfServerStorageFileSystem.factory.register('Storage', jfServerStorageJson);
+module.exports = jfServerStorageJson;

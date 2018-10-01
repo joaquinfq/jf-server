@@ -1,9 +1,6 @@
-const jfServerBase              = require('../Base');
-const jfServerAdapterBase       = require('../adapter/Base');
-const jfServerResponseHtml      = require('../response/Html');
-const jfServerStorageFileSystem = require('../storage/FileSystem');
-const path                      = require('path');
-const urlParse                  = require('url').parse;
+const jfServerBase = require('../Base');
+const path         = require('path');
+const urlParse     = require('url').parse;
 /**
  * Clase base para los punto de entrada de las peticiones.
  *
@@ -65,6 +62,12 @@ module.exports = class jfServerHandlerBase extends jfServerBase
          */
         this.storage = null;
         /**
+         * Tiempo de inicio del procesado de la petición.
+         *
+         * @type {number}
+         */
+        this.time    = Date.now();
+        /**
          * Información de la URL de la petición.
          *
          * @property url
@@ -106,9 +109,44 @@ module.exports = class jfServerHandlerBase extends jfServerBase
      */
     _init(config)
     {
-        this.adapter  = new jfServerAdapterBase(config);
-        this.response = new jfServerResponseHtml(config);
-        this.storage  = new jfServerStorageFileSystem(config);
+        const _factory = this.constructor.factory;
+        this.response  = config.response || _factory.create('Response', config);
+        if (this.response)
+        {
+            this.adapter = config.adapter || _factory.create('Adapter', config);
+            if (this.adapter)
+            {
+                this.storage = config.storage || _factory.create('Storage', config);
+                if (!this.storage)
+                {
+                    throw new Error('Se debe registrar una clase que extienda jf.server.storage.Base');
+                }
+            }
+            else
+            {
+                throw new Error('Se debe registrar una clase que extienda jf.server.adapter.Base');
+            }
+        }
+        else
+        {
+            throw new Error('Se debe registrar una clase que extienda jf.server.response.Base');
+        }
+    }
+
+    /**
+     * Muestra por pantalla información de la petición.
+     */
+    logRequest()
+    {
+        this.log(
+            'log',
+            this.constructor.name,
+            '[%s][%sms] %s %s',
+            this.response.statusCode,
+            ('   ' + (Date.now() - this.time).toFixed(0)).substr(-3),
+            this.request.method,
+            this.request.url
+        );
     }
 
     /**
@@ -147,6 +185,22 @@ module.exports = class jfServerHandlerBase extends jfServerBase
     async process()
     {
         this.adapter.response(this.response);
+    }
+
+    /**
+     * Registra una clase como manejadora de una petición.
+     */
+    static register()
+    {
+        const _factory = this.factory;
+        const _name    = this.name.match(/Handler([A-Z][a-z0-9]+)$/);
+        if (_name)
+        {
+            const _method = _name[1].toUpperCase();
+            this.extensions.forEach(
+                ext => _factory.register(`Handler::${_method}::${ext}`, this)
+            );
+        }
     }
 
     /**

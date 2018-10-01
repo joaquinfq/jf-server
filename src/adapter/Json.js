@@ -1,5 +1,6 @@
 const jfServerAdapterBase = require('./Base');
 const qsParse             = require('querystring').parse;
+
 /**
  * Define un adaptador para una API sencilla.
  *
@@ -7,7 +8,7 @@ const qsParse             = require('querystring').parse;
  * @class     jf.server.adapter.Json
  * @extends   jf.server.adapter.Base
  */
-module.exports = class jfServerAdapterJson extends jfServerAdapterBase
+class jfServerAdapterJson extends jfServerAdapterBase
 {
     /**
      * Constructor de la clase.
@@ -74,6 +75,7 @@ module.exports = class jfServerAdapterJson extends jfServerAdapterBase
                                 }
                             }
                         );
+
                         return _data;
                     }
                 );
@@ -134,6 +136,7 @@ module.exports = class jfServerAdapterJson extends jfServerAdapterBase
                                             break;
                                     }
                                 }
+
                                 return _ok;
                             }
                         )
@@ -235,4 +238,8 @@ module.exports = class jfServerAdapterJson extends jfServerAdapterBase
             }
         }
     }
-};
+}
+
+//------------------------------------------------------------------------------
+require('../Base').factory.register('Adapter', jfServerAdapterJson);
+module.exports = jfServerAdapterJson;

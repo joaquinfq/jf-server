@@ -1,6 +1,7 @@
 const fs                  = require('fs');
 const jfServerStorageBase = require('./Base');
 const path                = require('path');
+
 /**
  * Adaptador para usar el sistema de archivos como soporte de los datos.
  *
@@ -8,7 +9,7 @@ const path                = require('path');
  * @class     jf.server.storage.FileSystem
  * @extends   jf.server.storage.Base
  */
-module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
+class jfServerStorageFileSystem extends jfServerStorageBase
 {
     /**
      * Construye el nombre completo del archivo del recurso.
@@ -24,7 +25,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
         const _filename  = pathname.includes(_root)
             ? pathname
             : path.join(_root, ...pathname.split('/'));
-        //
+
         return addExtension && _extension && !_filename.endsWith(_extension)
             ? _filename + _extension
             : _filename;
@@ -56,7 +57,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
             this.log('error', '', e.message);
             _result = false;
         }
-        //
+
         return _result;
     }
 
@@ -66,7 +67,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
     create(pathname, data, overwrite = false)
     {
         const _filename = this.buildFilename(pathname);
-        //
+
         return overwrite || !this.exists(_filename)
             ? this._exec('write', _filename, data)
             : false;
@@ -78,7 +79,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
     delete(pathname)
     {
         const _filename = this.buildFilename(pathname);
-        //
+
         return this.exists(_filename)
             ? this._exec('rmdir', _filename)
             : false;
@@ -89,7 +90,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
      */
     getLastId(pathname)
     {
-        const _filename = this.buildFilename(pathname);
+        const _filename = this.buildFilename(pathname, false);
         //
         let _id         = 0;
         if (this.isDirectory(_filename))
@@ -103,6 +104,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
                 _id = Math.max(..._ids);
             }
         }
+
         return _id;
     }
 
@@ -112,7 +114,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
     retrieve(pathname)
     {
         const _filename = this.buildFilename(pathname);
-        //
+
         return this.exists(_filename)
             ? this._exec('read', _filename)
             : false;
@@ -140,7 +142,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
                 _result = false;
             }
         }
-        //
+
         return _result;
     }
 
@@ -151,4 +153,7 @@ module.exports = class jfServerStorageFileSystem extends jfServerStorageBase
     {
         return this.create(pathname, data, true);
     }
-};
+}
+//------------------------------------------------------------------------------
+jfServerStorageBase.factory.register('Storage', jfServerStorageFileSystem);
+module.exports = jfServerStorageFileSystem;

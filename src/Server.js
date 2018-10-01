@@ -1,10 +1,8 @@
-const Base                = require('./Base').i();
-const Events              = require('events');
-const fs                  = require('fs');
-const jfServerBase        = require('jf-server-base');
-const jfServerHandlerBase = require('./handler/Base');
-const os                  = require('os');
-const path                = require('path');
+const Base         = require('./Base');
+const Events       = require('events');
+const jfServerBase = require('jf-server-base');
+const os           = require('os');
+const path         = require('path');
 /**
  * Clase que gestiona el servidor web.
  *
@@ -21,14 +19,6 @@ module.exports = class jfServerServer extends Events
     constructor(config = {})
     {
         super();
-        /**
-         * Manejadores de las peticiones.
-         *
-         * @type {object}
-         */
-        this.handlers = {
-            jfServerError : jfServerHandlerBase
-        };
         /**
          * Nombre del host.
          *
@@ -61,21 +51,13 @@ module.exports = class jfServerServer extends Events
      */
     buildHandler(method, url, config = {})
     {
-        let _handler = null;
-        this.emit('before-build-handler', { method, url, config });
-        const _handlers = this.handlers[method.toUpperCase()];
-        if (_handlers)
-        {
-            // Si no hay una extensión usamos el nombre por si hay un
-            // manejador para esa ruta.
-            const _extension = path.extname(url) || path.basename(url);
-            const _Class     = _handlers[_extension] || _handlers['*'];
-            if (_Class)
-            {
-                _handler = new _Class(config);
-            }
-        }
-        this.emit('after-build-handler', { method, url, config, handler : _handler });
+        const _method = method.toUpperCase();
+        this.emit('before-build-handler', { method : _method, url, config });
+        const _extension = path.extname(url) || path.basename(url);
+        const _factory   = Base.factory;
+        const _handler   = _factory.create(`Handler::${_method}::${_extension}`, config) ||
+                           _factory.create(`Handler::${_method}::*`, config);
+        this.emit('after-build-handler', { method : _method, url, config, handler : _handler });
         //
         return _handler;
     }
@@ -92,26 +74,6 @@ module.exports = class jfServerServer extends Events
     }
 
     /**
-     * Muestra por pantalla información de la petición.
-     *
-     * @param {jf.server.handler.Base} handler  Manejador de la petición.
-     * @param {http.IncomingMessage}   request  Configuración de la petición.
-     * @param {Number}                 time     Marca de tiempo del inicio de la petición.
-     */
-    log(handler, request, time)
-    {
-        Base.log(
-            'log',
-            this.constructor.name,
-            '[%s][%sms] %s %s',
-            handler.response.statusCode,
-            ('   ' + (Date.now() - time).toFixed(0)).substr(-3),
-            request.method,
-            request.url
-        );
-    }
-
-    /**
      * Procesa la petición.
      *
      * @param {http.IncomingMessage} request  Objeto de la petición.
@@ -122,7 +84,6 @@ module.exports = class jfServerServer extends Events
     {
         let _error;
         let _handler;
-        const _time = Date.now();
         try
         {
             _handler = this.buildHandler(request.method.toUpperCase(), request.url, { body, request });
@@ -157,7 +118,7 @@ module.exports = class jfServerServer extends Events
             {
                 if (!_handler)
                 {
-                    _handler = new this.handlers.jfServerError();
+                    _handler = this.buildHandler('Handler::ERROR::*', request.url);
                 }
                 _handler.response.setError(
                     {
@@ -166,7 +127,7 @@ module.exports = class jfServerServer extends Events
                 );
             }
             this.send(_handler, response);
-            this.log(_handler, request, _time);
+            _handler.logRequest();
         }
         catch (e)
         {
@@ -174,44 +135,6 @@ module.exports = class jfServerServer extends Events
             response.writeHead(_error || 500);
             response.end();
         }
-    }
-
-    /**
-     * Registra una clase como manejadora de una petición.
-     *
-     * @param {string}                 method Método de la petición.
-     * @param {jf.server.handler.Base} Class  Clase a registrar.
-     */
-    register(method, Class)
-    {
-        let _handlers = this.handlers;
-        _handlers     = method in _handlers
-            ? _handlers[method]
-            : _handlers[method] = {};
-        Class.extensions.forEach(ext => _handlers[ext] = Class);
-    }
-
-    /**
-     * Registra todas las clases de un directorio como manejaadores de peticiones.
-     * Los nombres de los archivos deben coincidir con los nombres de los métodos
-     * de la petición que manejan.
-     *
-     * @param {string} handlersDir Directorio con los manejadores.
-     */
-    registerFromDir(handlersDir)
-    {
-        fs.readdirSync(handlersDir).forEach(
-            handler =>
-            {
-                if (handler !== 'Base.js')
-                {
-                    this.register(
-                        path.basename(handler, '.js').toUpperCase(),
-                        require(path.join(handlersDir, handler))
-                    );
-                }
-            }
-        );
     }
 
     /**
@@ -256,7 +179,7 @@ module.exports = class jfServerServer extends Events
         const _port  = this.port;
         const _lines = [
             `URL  del servidor : http://${this.host}:${_port}`,
-            `Raíz del servidor : ${Base.constructor.ROOT}`
+            `Raíz del servidor : ${Base.ROOT}`
         ];
         const _sep   = '-'.repeat(Math.max(..._lines.map(l => l.length)));
         _lines.unshift(_sep);

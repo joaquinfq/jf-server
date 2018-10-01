@@ -4,6 +4,7 @@ const jfServerBase  = require('../Base');
 const jfServerTpl   = require('../Tpl');
 const mimeTypes     = require('../mime-types').extensions;
 const path          = require('path');
+
 /**
  * Clase base para construir las respuestas.
  *
@@ -11,7 +12,7 @@ const path          = require('path');
  * @class     jf.server.response.Base
  * @extends   jf.server.Base
  */
-module.exports = class jfServerResponseBase extends jfServerBase
+class jfServerResponseBase extends jfServerBase
 {
     /**
      * @override
@@ -194,4 +195,8 @@ module.exports = class jfServerResponseBase extends jfServerBase
             }
         );
     }
-};
+}
+
+//------------------------------------------------------------------------------
+jfServerBase.factory.register('Response', jfServerResponseBase);
+module.exports = jfServerResponseBase;

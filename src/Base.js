@@ -1,7 +1,14 @@
 const format       = require('util').format;
+const jfFactory    = require('jf-factory');
 const jfFileSystem = require('jf-file-system');
 const path         = require('path');
 const PKG          = require(path.join(__dirname, '..', 'package.json'));
+/**
+ * Longitud del nombre de la clase en el registro por pantalla.
+ *
+ * @type {number}
+ */
+let logNameLength  = 13;
 /**
  * Ruta raíz del servidor.
  *
@@ -17,6 +24,40 @@ let root           = path.join(__dirname, '..');
  */
 module.exports = class jfServerBase extends jfFileSystem
 {
+    /**
+     * Devuelve la factoría para registrar y/o crear las instancias.
+     *
+     * @return {jf.Factory} Factoría a usar.
+     */
+    static get factory()
+    {
+        return jfFactory.i('jfServer');
+    }
+
+    /**
+     * @override
+     */
+    static log(level, name, label, ...args)
+    {
+        console[level || 'log'](
+            '[%s][%s]%s%s',
+            new Date().toISOString().substr(0, 19).replace('T', ' '),
+            `${(name || this.name).replace('jfServer', '')}${' '.repeat(logNameLength)}`.substr(0, logNameLength),
+            label[0] === '[' ? '' : ' ',
+            format(label, ...args)
+        );
+    }
+
+    /**
+     * Asigna el valor a la longitud del nombre en el registro por pantalla.
+     *
+     * @param {number} length Valor a asignar.
+     */
+    static set logNameLength(length)
+    {
+        logNameLength = length;
+    }
+
     /**
      * Devuelve la configuración del servidor.
      *
@@ -69,16 +110,9 @@ module.exports = class jfServerBase extends jfFileSystem
     /**
      * @override
      */
-    log(level, name, label, ...args)
+    log(...args)
     {
-        const _length = 12;
-        console[level || 'log'](
-            '[%s][%s]%s%s',
-            new Date().toISOString().substr(0, 19).replace('T', ' '),
-            `${(name || this.constructor.name).replace('jfServer', '')}${' '.repeat(_length)}`.substr(0, _length),
-            label[0] === '[' ? '' : ' ',
-            format(label, ...args)
-        );
+        this.constructor.log(...args);
     }
 
     /**

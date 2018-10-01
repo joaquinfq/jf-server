@@ -8,7 +8,7 @@ const path                = require('path');
  * @class     jf.server.handler.Get
  * @extends   jf.server.handler.Base
  */
-module.exports = class jfServerHandlerGet extends jfServerHandlerBase
+class jfServerHandlerGet extends jfServerHandlerBase
 {
     /**
      * Extensiones que gestiona la clase.
@@ -181,4 +181,8 @@ module.exports = class jfServerHandlerGet extends jfServerHandlerBase
         }
         await super.process();
     }
-};
+}
+
+//------------------------------------------------------------------------------
+jfServerHandlerGet.register();
+module.exports = jfServerHandlerGet;

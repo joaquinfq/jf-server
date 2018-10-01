@@ -1,4 +1,5 @@
 const jfServerResponseBase = require('./Base');
+
 /**
  * Gestiona la página a devolver.
  *
@@ -6,7 +7,7 @@ const jfServerResponseBase = require('./Base');
  * @class     jf.server.response.Json
  * @extends   jf.server.response.Base
  */
-module.exports = class jfServerResponseJson extends jfServerResponseBase
+class jfServerResponseJson extends jfServerResponseBase
 {
     /**
      * @override
@@ -62,4 +63,8 @@ module.exports = class jfServerResponseJson extends jfServerResponseBase
         }
         return _result;
     }
-};
+}
+
+//------------------------------------------------------------------------------
+jfServerResponseBase.factory.register('Response', jfServerResponseJson);
+module.exports = jfServerResponseJson;

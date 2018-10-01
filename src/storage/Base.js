@@ -1,5 +1,6 @@
 const jfServerBase = require('../Base');
 const path         = require('path');
+
 /**
  * Clase base para los adaptadores.
  * Un adaptador permite realizar las operaciones CRUD sobre un soporte.
@@ -8,7 +9,7 @@ const path         = require('path');
  * @class     jf.server.storage.Base
  * @extends   jf.server.Base
  */
-module.exports = class jfServerStorageBase extends jfServerBase
+class jfServerStorageBase extends jfServerBase
 {
     /**
      * Extensión que gestiona el almacenamiento.
@@ -99,4 +100,8 @@ module.exports = class jfServerStorageBase extends jfServerBase
     {
         console.log('UPDATE: %s - %s', pathname, JSON.stringify(data));
     }
-};
+}
+
+//------------------------------------------------------------------------------
+jfServerBase.factory.register('Storage', jfServerStorageBase);
+module.exports = jfServerStorageBase;

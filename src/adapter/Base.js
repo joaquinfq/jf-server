@@ -6,7 +6,7 @@
  * @class     jf.server.adapter.Base
  * @extends   jf.server.Base
  */
-module.exports = class jfServerAdapterBase
+class jfServerAdapterBase
 {
     /**
      * Permite configurar el adaptador conforme a los datos recibidos en la petición.
@@ -28,4 +28,8 @@ module.exports = class jfServerAdapterBase
     response(response)
     {
     }
-};
+}
+
+//------------------------------------------------------------------------------
+require('../Base').factory.register('Adapter', jfServerAdapterBase);
+module.exports = jfServerAdapterBase;
