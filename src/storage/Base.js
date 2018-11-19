@@ -1,5 +1,4 @@
 const jfServerBase = require('../Base');
-const path         = require('path');
 
 /**
  * Clase base para los adaptadores.
@@ -20,6 +19,20 @@ class jfServerStorageBase extends jfServerBase
     static get extension()
     {
         return '';
+    }
+
+    /**
+     * @override
+     */
+    constructor(...args)
+    {
+        super(...args);
+        /**
+         * Manejador de la petición actual.
+         *
+         * @type {jf.server.handler.Base|null}
+         */
+        this.handler = null;
     }
 
     /**

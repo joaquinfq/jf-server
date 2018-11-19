@@ -41,6 +41,12 @@ module.exports = class jfServerHandlerBase extends jfServerBase
          */
         this.body = null;
         /**
+         * Indica si habilita las cabeceras para evitar CORS.
+         *
+         * @type {boolean}
+         */
+        this.cors = true;
+        /**
          * Manejador de la respuesta a enviar al cliente.
          *
          * @property response
@@ -101,6 +107,7 @@ module.exports = class jfServerHandlerBase extends jfServerBase
         return path.join(this.constructor.ROOT, ...this.url.pathname.split('/'));
     }
 
+
     /**
      * Método usado para inicializar las instancias de clases requeridas por el manejador.
      * Sobrescribiendo este método cada clase hija colocará los valores apropiados.
@@ -116,8 +123,13 @@ module.exports = class jfServerHandlerBase extends jfServerBase
             this.adapter = config.adapter || _factory.create('Adapter', config);
             if (this.adapter)
             {
-                this.storage = config.storage || _factory.create('Storage', config);
-                if (!this.storage)
+                const _storage = config.storage || _factory.create('Storage', config);
+                if (_storage)
+                {
+                    _storage.handler = this;
+                    this.storage     = _storage;
+                }
+                else
                 {
                     throw new Error('Se debe registrar una clase que extienda jf.server.storage.Base');
                 }
@@ -184,6 +196,10 @@ module.exports = class jfServerHandlerBase extends jfServerBase
      */
     async process()
     {
+        if (this.cors)
+        {
+            this._removeCors();
+        }
         this.adapter.response(this.response);
     }
 
@@ -201,6 +217,31 @@ module.exports = class jfServerHandlerBase extends jfServerBase
                 ext => _factory.register(`Handler::${_method}::${ext}`, this)
             );
         }
+    }
+
+    /**
+     * Desactiva el CORS en la petición.
+     *
+     * @protected
+     */
+    _removeCors()
+    {
+        const _requestHeaders  = this.request.headers;
+        const _responseHeaders = this.response.headers;
+        _responseHeaders.set(
+            {
+                'Access-Control-Allow-Credential' : 'true',
+                'Access-Control-Allow-Methods'    : _requestHeaders['access-control-request-method'] || 'GET',
+                'Access-Control-Allow-Origin'     : _requestHeaders.origin || _requestHeaders.host,
+                'Access-Control-Max-Age'          : 86400
+            }
+        );
+        const _headers = _requestHeaders['access-control-request-headers'];
+        if (_headers)
+        {
+            _responseHeaders.set('Access-Control-Allow-Headers', _headers);
+        }
+        _responseHeaders.del('X-Frame-Options');
     }
 
     /**
