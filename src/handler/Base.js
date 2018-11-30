@@ -173,7 +173,7 @@ module.exports = class jfServerHandlerBase extends jfServerBase
         if (_url)
         {
             const _parsed   = urlParse(_url);
-            const _pathname = _parsed.pathname;
+            const _pathname = '/' + _parsed.pathname.split('/').slice(1).filter(Boolean).join('/');
             if (this._validatePathname(_pathname))
             {
                 this.url = _parsed;
